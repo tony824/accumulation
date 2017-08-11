@@ -5,6 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0-alpha15"]
                  [de.ubercode.clostache/clostache "1.4.0"]
+                 [clojure-tensorflow "0.2.4"]
                  [org.clojure/test.check "0.9.0"]
                  [prismatic/schema "1.1.6"]
                  [ring/ring-codec "1.0.1"]

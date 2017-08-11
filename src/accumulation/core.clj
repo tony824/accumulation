@@ -20,7 +20,11 @@
             [clojure-csv.core :as csv]
             [clj-ssh.ssh :as ssh]
             [clj-ssh.cli :as cli]
-            [miner.ftp :as ftp]))
+            [miner.ftp :as ftp]
+            [clojure-tensorflow.ops :as tf]
+            [clojure-tensorflow.layers :as layer]
+            [clojure-tensorflow.optimizers :as optimize]
+            [clojure-tensorflow.core :refer [run with-graph with-session]]))
 
 (comment
   "A point P=(x,y)"
@@ -167,7 +171,6 @@
      (reduce f2 [] s))) "le" 3)
 
 ;; 4clojure 34 implement range
-
 ((fn f [l  r]
    (loop [x l result []]
      (if (< x r)
@@ -175,7 +178,6 @@
        (seq result)))) -1 3 )
 
 ;;4clojure 37
-
 (str (re-seq #"[A-Z]+" "bA1B3Ce "))
 
 (map last (re-seq #"(\S+):(\d+)" "RX pkts:18 err:5 drop:48"))
@@ -205,7 +207,6 @@
 (map #(vector (first %) (* 2 (second %)))
      {:a 1 :b 2 :c 3})
 ;;4clojure 40
-
 ((fn f [s1,s]
    (let [f2
          (fn [acc s2]
@@ -228,7 +229,6 @@
 (mapcat  #(vector "," %) ["one" "two" "three"])
 
 ;; 4clojure 41 drop EVERY nth element
-
 ((fn f [s n]
    (loop [agg [] s* s]
      (if (empty? s*)
@@ -458,7 +458,7 @@
 
 ((comp first rest reverse) [1 2 3 4 5])
 
- (symbol? "(render hello {{interaction/customer-metadata.first-name}}")
+(symbol? "(render hello {{interaction/customer-metadata.first-name}}")
 
 (reduce #(if ((set %1) %2) %1 (conj %1 %2)) [] [1 2 1 3 1 2 4])
 
@@ -496,7 +496,6 @@
 ;; recursively 
 ((fn p [n c] (when (and (seq c) (>= (count c) n)) (cons (take n c) (p n (drop n c))))) 3 (range 9))
 
-;;  
 (#(loop [xs %2 acc []]
     (if (< (count xs) %)
       acc
