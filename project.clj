@@ -9,7 +9,7 @@
                  [org.clojure/test.check "0.9.0"]
                  [prismatic/schema "1.1.6"]
                  [ring/ring-codec "1.0.1"]
-                 [clj-time "0.13.0"]
+                 [clj-time "0.14.0"]
                  [compojure "1.6.0"]
                  [clj-http "3.6.1"]
                  [robert/bruce "0.8.0"]
@@ -22,5 +22,6 @@
                  [com.taoensso/carmine "2.16.0"]
                  [clojure-csv/clojure-csv "2.0.2"]
                  [me.raynes/fs "1.4.6"]
+                 [cc.qbits/hayt "4.0.0"]
                  [com.velisco/clj-ftp "0.3.8"]
                  [clj-ssh "0.5.14"]])

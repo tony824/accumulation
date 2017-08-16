@@ -14,6 +14,8 @@
             [clojure.spec.gen :as gen]
             [clj-time.core :as t]
             [clj-time.format :as f]
+            [clj-time.local :as l]
+            [clj-time.coerce :as c]
             [clj-http.client :as client]
             [taoensso.carmine :as car :refer (wcar)]
             [compojure.core :refer :all]
@@ -1267,3 +1269,28 @@
                      :properties (assoc dev-properties :multiple-tenants true)}
                     {:tenant-id "cd741910-188e-11e7-9873-1b92cd79a0c3"
                      :properties dev-properties}])
+
+(defn map-keys
+  [m f]
+  (->> m
+       (reduce-kv (fn [acc k v]
+                    (try
+                      (assoc! acc (f k) v)
+                      (catch Exception e
+                        (assoc! acc k v))))
+                  (transient {}))
+       persistent!))
+
+(defn deep-merge
+  "Like merge, but merges maps recursively."
+  [& maps]
+  (if (every? map? maps)
+    (apply merge-with deep-merge maps)
+    (last maps)))
+
+(defn assoc-if-exist
+  "assoc only if the map contains the specified key"
+  [map key new-val]
+  (if (contains? map key)
+    (assoc map key new-val)
+    map))
