@@ -1,0 +1,19 @@
+version: '2'
+services:
+  eureka:
+    hostname: "eureka"
+    image: "460140541257.dkr.ecr.us-east-1.amazonaws.com/eureka:latest"
+    ports:
+      - "8080:8080"
+  zookeeper:
+    hostname: "zookeeper"
+    image: "460140541257.dkr.ecr.us-east-1.amazonaws.com/zookeeper:latest"
+    ports:
+      - "8282:8282"  
+  verint-gateway:
+    image: "460140541257.dkr.ecr.us-east-1.amazonaws.com/verint-gateway:1.1.0-SNAPSHOT"
+    environment:
+      - ENVIRONMENT=docker
+    ports:
+      - "14080:8080"
+      - "9080:9080"

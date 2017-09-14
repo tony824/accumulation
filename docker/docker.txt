@@ -1,0 +1,29 @@
+docker run -d -t -i -p 8080:8080 -v /lo/conf:/lo/conf -v /lo/logs:/lo/logs  --network=bridge  -e  --name  460140541257.dkr.ecr.us-east-1.amazonaws.com/eureka:latest
+
+docker run -d -t -i -p 8282:8282 -v /lo/conf:/lo/conf -v /lo/logs:/lo/logs --network=bridge  -e  --name 460140541257.dkr.ecr.us-east-1.amazonaws.com/zookeeper:latest
+
+docker run -d -t -i -p 14080:8080 -p 9080:9080 -v /lo/conf:/lo/conf -v /lo/logs:/lo/logs -e ENVIRONMENT='docker' --network=bridge --restart on-failure:5 --name verint-gateway  460140541257.dkr.ecr.us-east-1.amazonaws.com/verint-gateway:1.1.0-SNAPSHOT
+
+docker ps
+
+docker images
+
+docker image rm -f
+
+DOCKER_API_VERSION=1.21 docker --host=HOST-IP:2375 ps
+
+DOCKER_API_VERSION=1.21 docker --host=HOST-IP:2375 logs  -f
+
+sudo docker exec -i -t 1bc27a5095a2(Container id)  /bin/bash
+
+docker-compose -f verint.xml build
+
+docker-compose -f verint.xml up  -d
+
+docker-compose -f verint.xml stop
+
+docker-compose logs configurator
+
+docker images --no-trunc | grep '<none>' | awk '{ print $3 }' \ | xargs -r docker rmi
+
+sudo  du -h --max-depth=1  /

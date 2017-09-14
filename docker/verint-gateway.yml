@@ -1,0 +1,23 @@
+version: '2'
+services:
+  eureka:  
+    image: "460140541257.dkr.ecr.us-east-1.amazonaws.com/eureka:latest"
+    ports:
+      - "8080:8080"
+  zookeeper:
+    image: "460140541257.dkr.ecr.us-east-1.amazonaws.com/zookeeper:latest"
+    ports:
+      - "8282:8282"
+  verint-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile-Dev
+    environment:
+      - ENVIRONMENT=docker
+      - LEIN_ROOT=true
+    volumes:
+      - $HOME/.m2:/lo/m2
+      - $PWD:/lo/code
+    ports:
+      - "14080:8080"
+      - "9080:9080"

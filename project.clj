@@ -24,4 +24,6 @@
                  [me.raynes/fs "1.4.6"]
                  [cc.qbits/hayt "4.0.0"]
                  [com.velisco/clj-ftp "0.3.8"]
-                 [clj-ssh "0.5.14"]])
+                 [org.clojure/math.combinatorics "0.1.4"]
+                 [clj-ssh "0.5.14"]
+                 [aysylu/loom "1.0.0"]])

@@ -1,0 +1,17 @@
+FROM docker.liveopslabs.com/lein
+
+RUN mkdir -p /lo/conf \
+    && mkdir -p /lo/logs \
+    && mkdir -p /lo/m2 \
+    && mkdir -p /lo/code
+
+RUN mkdir -p /root/.ssh
+
+RUN touch /root/.ssh/known_hosts
+
+EXPOSE 8080 9002
+
+VOLUME ["/lo/m2", "/lo/code"]
+
+WORKDIR /lo/code
+ENTRYPOINT ["lein", "update-in", ":", "assoc", ":local-repo", "\"/lo/m2\"", "--", "trampoline", "run"]
