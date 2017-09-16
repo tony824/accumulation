@@ -23,11 +23,7 @@
             [miner.ftp :as ftp]
             [loom.graph :as g]
             [clojure.math.combinatorics :as combo]
-            [clojure.walk :refer [keywordize-keys]]
-            [clojure-tensorflow.ops :as tf]
-            [clojure-tensorflow.layers :as layer]
-            [clojure-tensorflow.optimizers :as optimize]
-            [clojure-tensorflow.core :refer [run with-graph with-session]]))
+            [clojure.walk :refer [keywordize-keys]]))
 
 (comment
   "A point P=(x,y)"
@@ -742,6 +738,23 @@
 
 (keywordize-keys {"ww" {"ss" "aa"}})
 
+(defn overlap
+  [params]
+  (loop [f (first params) r (rest params) acc {}]
+    (letfn [(overlap-each-other? [a b]
+              (let [s1 (set a)
+                    s2 (set b)]
+                (and (seq (clojure.set/difference  s1 s2))
+                     (seq (clojure.set/difference s2 s1))
+                     (seq (clojure.set/intersection s2 s1)))))]
+      (if (seq r)
+        (recur (first r) (rest r) (->> (group-by (partial overlap-each-other? f)  r)
+                                       (reduce-kv (fn [acc2 k v] (if (or (nil? k)
+                                                                      (contains? acc2 k ))
+                                                                acc2
+                                                                (assoc acc2 k (cons f v)))) acc)))
+        acc))))
+
 (comment
   longest common subsrting)
 
@@ -761,5 +774,3 @@
 
 (max-key count "asd" "bsd" "dsd" "long word")
 (apply max-key val {:a 3 :b 7 :c 9})
-
-
