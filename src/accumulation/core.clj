@@ -22,6 +22,7 @@
             [clj-ssh.cli :as cli]
             [miner.ftp :as ftp]
             [loom.graph :as g]
+            [clojure.edn :as edn]
             [clojure.math.combinatorics :as combo]
             [clojure.walk :refer [keywordize-keys]]))
 
@@ -561,6 +562,12 @@
    (start p1 p2 nil)))
 
 
+
+(defn start2
+  [p1 p2 &[p3]]
+  (str p1 p2 (or p3 "what")))
+
+
 (defn my-fun
   [a]
   (println a)
@@ -629,7 +636,7 @@
                          :port 6379}})
 (defmacro wcar* [& body] `(car/wcar server-conn ~@body))
 
-(wcar* (car/ping))
+#_(wcar* (car/ping))
 (def records (atom {}))
 (swap! records
        (fn [m]
@@ -738,22 +745,27 @@
 
 (keywordize-keys {"ww" {"ss" "aa"}})
 
+
+(defn overlap-each-other?
+  [a b]
+  (let [s1 (set a)
+        s2 (set b)]
+    (and (seq (clojure.set/difference  s1 s2))
+         (seq (clojure.set/difference s2 s1))
+         (seq (clojure.set/intersection s2 s1)))))
+
 (defn overlap
   [params]
-  (loop [f (first params) r (rest params) acc {}]
-    (letfn [(overlap-each-other? [a b]
-              (let [s1 (set a)
-                    s2 (set b)]
-                (and (seq (clojure.set/difference  s1 s2))
-                     (seq (clojure.set/difference s2 s1))
-                     (seq (clojure.set/intersection s2 s1)))))]
-      (if (seq r)
-        (recur (first r) (rest r) (->> (group-by (partial overlap-each-other? f)  r)
-                                       (reduce-kv (fn [acc2 k v] (if (or (nil? k)
-                                                                      (contains? acc2 k ))
-                                                                acc2
-                                                                (assoc acc2 k (cons f v)))) acc)))
-        acc))))
+  (loop [f (first params) r (rest params) acc {}]    
+    (if (seq r)
+      (let [t (->> (group-by (partial overlap-each-other? f)  r)
+                   (reduce-kv (fn [m k v] (if (or (nil? k)
+                                                  (contains? m k ))
+                                            m
+                                            (assoc m k (cons f v))))
+                              acc))]
+        (recur (first r) (rest r) t))
+      acc)))
 
 (comment
   longest common subsrting)
@@ -774,3 +786,131 @@
 
 (max-key count "asd" "bsd" "dsd" "long word")
 (apply max-key val {:a 3 :b 7 :c 9})
+
+(-> (clojure.lang.PersistentQueue/EMPTY) (conj 1 2 3) peek)
+(-> (clojure.lang.PersistentQueue/EMPTY) (conj 1 2 3) pop seq)
+
+(numerator (/ 123 10))
+(denominator (/ 123 10))
+
+(zipmap '(1 2 3) (repeat 0))
+(re-seq #"\w+" "one-two/three")
+
+
+(comment
+  1. 3 ways to build function
+  partial  complement comp
+  2. pure functions :no observable side effects  for the same arguments return the same result
+  3. functions as arguements functions as results)
+
+(defn fnth [n]
+  (apply comp
+         (cons first
+               (take (dec n) (repeat rest)))))
+
+;; A list of functions. and use apply comp to build another function
+
+'(first rest rest rest rest)
+
+((comp first rest rest rest rest ) [:a :b :c :d :e :f :g])
+
+((fnth 5) '[a b c d e])
+
+(complement even?)
+
+(comp not even?)
+
+(defn join
+  {:test (fn []
+           (assert
+            (= (join "," [1 3 3]) "1,3,3")))}
+  [sep s]
+  (apply str (interpose sep s)))
+
+(test #'join)
+(meta #'join)
+(clojure.test/run-tests)
+
+(defn ^:private ^:dynamic sum [nums]
+  (map + nums))
+
+(defn-  sum2 [nums]
+  (map + nums))
+
+(defn f [] false)
+
+(with-redefs [f  (fn [] true)] 
+  (f))
+
+(with-redefs-fn {#'f (fn [] true)}
+  #(f))
+
+(defn slope [p1 p2]
+  {:pre [(not= p1 p2) (vector? p1) (vector? p2)]
+   :post [(float? %)]}
+  (/ (- (p2 1) (p1 1))
+     (- (p2 0) (p1 0))))
+
+(set! *assert* false)
+
+(comment
+  return the min key of a vector
+  "min-key"/"max-key" to "min"/"max" like "sort-by" to "sort"
+  vector as function
+  )
+
+(let [v [12 2 3 43]] (apply min-key v (range (count v))))
+
+(apply min-key #(Math/abs %) [-3 1 4])
+
+(comment
+  a closure is
+  a function that has access to locals from the context where it was created
+
+  http://clojure-doc.org/articles/language/macros.html
+  
+  The key difference between quote and syntax quote is that symbols within a syntax quoted form are automatically namespace-qualified.
+  Another difference between quoting and syntax quoting is that the latter allows you to unquote forms using the tilde)
+
+(list 1 [2 3])
+(list* 1 [2 3])
+
+
+(comment
+
+  special characters in macro
+
+  ~'symbol at times in Clojure macros for selectively capturing a symbolic name in the
+  body of a macro
+  The reason for this bit of awkwardness 11 is that Clojure’s syntax-
+  quote attempts to resolve symbols in the current context, resulting in fully qualified
+  symbols. Therefore, ~' avoids that resolution by unquoting a quote
+  )
+
+(defn contextual-eval [ctx expr]
+  (eval
+   `(let [~@(mapcat (fn [[k v]] [k `'~v]) ctx)]
+      ~expr)))
+
+(mapcat (fn [[k v]] [k `'~v]) '{a 1, b 2})
+
+(contextual-eval '{a 1, b 2} '(+ a b))
+
+
+(defmacro awhen [expr & body]
+  `(let [~'it ~expr]
+     (if ~'it       
+       (do ~@body))))
+
+(awhen [1 2 3] (it 2))
+
+(let [x 9, y '(- x)]
+  (println `y)  ;;has nothing to do with bind use y as macro symbol
+  (println ``y)  ;; has nothing to do with bind use y as macro symbol and syntax-quote it again
+  (println ``~y)  ;; the same as `y
+  (println ``~~y) ;; the same as y
+  (println 'y) ;; has nothing to do bind , symbol
+  )
+
+(comment
+  key difference between functions and macros is that function arguments are fully evaluated before they’re passed to the function, whereas macros receive arguments as unevaluated data)

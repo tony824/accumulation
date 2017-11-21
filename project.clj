@@ -24,7 +24,9 @@
                  [me.raynes/fs "1.4.6"]
                  [cc.qbits/hayt "4.0.0"]
                  [com.velisco/clj-ftp "0.3.8"]
+                 [com.rpl/specter "1.0.5"]
                  [org.clojure/math.combinatorics "0.1.4"]
                  [clj-ssh "0.5.14"]
                  [thinktopic/cortex "0.9.17"]
-                 [aysylu/loom "1.0.0"]])
+                 [aysylu/loom "1.0.0"]
+                 [com.walmartlabs/lacinia "0.21.0"]])

@@ -595,3 +595,63 @@
                      :properties (assoc dev-properties :multiple-tenants true)}
                     {:tenant-id "cd741910-188e-11e7-9873-1b92cd79a0c3"
                      :properties dev-properties}])
+
+(comment
+
+  sample call flow from Verint for making API calls (sending CTI events)
+  1  Login Agent Bob onto sip:+1000@sip.com
+  a.  Bob and sip:+1000@sip.com are now associated together
+  2  Agent Bob Ready
+  a.  Marked Bob as ready to receive new incoming calls
+  3  Ringing on sip:+1000@sip.com
+  4  Agent Bob Busy
+  a.  Marked Bob as busy handling a call.  Whether this comes before or after the ringing does not really matter.  It is common for us for the agent information and the CTI information to be entirely separate links / feeds so the timing should just be close enough.
+  5  Connected on sip:+1000@sip.com
+  6  Agent Bob Not Ready
+  a.  Marked Bob as not ready for future calls.  This does not change the call state or the agent<->device associations
+  7  Disconnected on sip:+1000@sip.com
+  8  Logout Agent Bob
+  a.  Bob and sip:+1000@sip.com are no longer associated together
+  9  Login Agent Bob onto sip:+2000@sip.com
+  a.  Bob and sip:+2000@sip.com are now associated together
+  )
+
+
+
+
+
+(->> s
+     (map #(select-keys % (conj keyseq user-id)))
+     (reduce 
+      (fn [acc {:keys [platform-agent-id] :as m}]
+        (if-let [[idx v] (->> acc
+                              (keep-indexed (fn [idx itm] (when (= (:platform-agent-id itm) platform-agent-id) [idx itm])))
+                              first)]
+          (assoc acc idx (update  (merge-with + m v) :platform-agent-id / 2))     
+          (conj acc m)))
+      []
+      )          
+     (map #(transform % user-id "10/17/2017"))
+     )
+
+
+
+(comment Use amazonica to get access to dynamodb
+
+         (db/scan {:endpoint (aws-region)}
+                  :table-name (table-name))
+
+         (db/query {:endpoint (aws-region)}
+                   :table-name (table-name)
+                   :select "ALL_ATTRIBUTES"
+                   ;;:filter-expression "#k2 < :v2" filter non-primary attribute
+                   :key-condition-expression "#id = :name"
+                   :expression-attribute-names {"#id" "tenant-id"}
+                   :expression-attribute-values {":name" "65b34f5d-8205-4b29-9220-d324acb802d9"})
+
+         (db/query {:endpoint (aws-region)}
+                   :table-name (table-name)
+                   :select "ALL_ATTRIBUTES"
+                   :scan-index-forward true
+                   :key-conditions
+                   {:tenant-id {:attribute-value-list ["64b34f5d-8205-4b29-9220-d324acb802d9"] :comparison-operator "EQ"}}))
