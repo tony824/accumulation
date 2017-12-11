@@ -7,9 +7,9 @@
             [cemerick.url :refer [url-encode]]
             [clojure.core.match :refer [match]]
             [clj-uuid :as uuid]
-            [clojure.spec :as s]
-            [clojure.spec.test :as stest]
-            [clojure.spec.gen :as gen]
+            [clojure.spec.alpha :as s]
+            [clojure.spec.test.alpha :as stest]
+            [clojure.spec.gen.alpha :as gen]
             [clj-time.core :as t]
             [clj-time.format :as f]
             [clj-time.local :as l]
@@ -767,6 +767,9 @@
         (recur (first r) (rest r) t))
       acc)))
 
+(overlap '([1 2] [2 3] [3 4]  [2 5] [2 8]))
+
+
 (comment
   longest common subsrting)
 
@@ -870,7 +873,8 @@
   http://clojure-doc.org/articles/language/macros.html
   
   The key difference between quote and syntax quote is that symbols within a syntax quoted form are automatically namespace-qualified.
-  Another difference between quoting and syntax quoting is that the latter allows you to unquote forms using the tilde)
+  Another difference between quoting and syntax quoting is that the latter allows you to unquote forms using the tilde
+  ` usually template some code)
 
 (list 1 [2 3])
 (list* 1 [2 3])
@@ -882,10 +886,23 @@
 
   ~'symbol at times in Clojure macros for selectively capturing a symbolic name in the
   body of a macro
-  The reason for this bit of awkwardness 11 is that Clojure’s syntax-
+  The reason for this bit of awkwardness is that Clojure’s syntax-
   quote attempts to resolve symbols in the current context, resulting in fully qualified
   symbols. Therefore, ~' avoids that resolution by unquoting a quote
   )
+
+(defmacro awhen [expr & body]
+  `(let [~'it ~expr]
+     (if ~'it       
+       (do ~@body))))
+
+(awhen [1 2 3] (it 2))
+
+
+(comment `'~ means "make a quote expression that contains the value of v as it is right now"
+             `'something means to get `(quote something))
+
+(let [k 'foo] [k 'k `'~k `(quote k)])
 
 (defn contextual-eval [ctx expr]
   (eval
@@ -895,14 +912,6 @@
 (mapcat (fn [[k v]] [k `'~v]) '{a 1, b 2})
 
 (contextual-eval '{a 1, b 2} '(+ a b))
-
-
-(defmacro awhen [expr & body]
-  `(let [~'it ~expr]
-     (if ~'it       
-       (do ~@body))))
-
-(awhen [1 2 3] (it 2))
 
 (let [x 9, y '(- x)]
   (println `y)  ;;has nothing to do with bind use y as macro symbol
@@ -914,3 +923,54 @@
 
 (comment
   key difference between functions and macros is that function arguments are fully evaluated before they’re passed to the function, whereas macros receive arguments as unevaluated data)
+
+(comment
+  defrecord ----> struct in c  class in Java
+  defprotocol ---> abstract class in Java)
+
+(defrecord Banana [qty])
+
+(defprotocol Fruit
+  (subtotal [item]))
+
+(extend-type Banana
+  Fruit
+  (subtotal [item]
+    (* 158 (:qty item))))
+
+(defprotocol Dateable
+  (to-ms [t]))
+
+(extend java.lang.Number
+  Dateable
+  {:to-ms identity})
+(to-ms  124)
+
+(comment
+  ref coordinated and retriable
+  agent asynchronous
+  atom retriable
+  var thread-local)
+
+(def counter (ref  0))
+(defn commute-inc! [c] (dosync (Thread/sleep 100) (commute c inc)))
+(defn alter-inc! [c] (dosync (Thread/sleep 100) (alter c inc)))
+(defn b-counter! [n f c] (apply pcalls (repeat n #(f c))))
+(dosync (ref-set counter 0))
+(time (doall (b-counter! 20 alter-inc! counter)))
+(dosync (ref-set counter 0))
+(time (doall (b-counter! 20 commute-inc! counter)))
+
+(defn haskell-partition [f coll]
+  (map (group-by f coll) [true false]))
+
+(haskell-partition even? (range 10))
+
+(split-with (complement #{:c}) [:a :b :c :d])
+
+
+
+(comment
+  iptables -I INPUT -p tcp --dport 50514 -s  -j DROP
+  iptables -I INPUT -p tcp --dport 2181 -s  -j ACCEPT
+)
