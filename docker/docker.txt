@@ -27,3 +27,5 @@ docker-compose logs configurator
 docker images --no-trunc | grep '<none>' | awk '{ print $3 }' \ | xargs -r docker rmi
 
 sudo  du -h --max-depth=1  /
+
+docker network ls

@@ -1,4 +1,4 @@
-FROM docker.liveopslabs.com/lein
+FROM 460140541257.dkr.ecr.us-east-1.amazonaws.com/lein
 
 RUN mkdir -p /lo/conf \
     && mkdir -p /lo/logs \
