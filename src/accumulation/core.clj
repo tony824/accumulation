@@ -94,7 +94,7 @@
   (if (> x 0)
     (recur (dec x) (conj result (+ 2 x)))
     result))
- 
+
 ;; 4clojure implement nth
 ;; problem 21
 (#(first (drop %2 %1)) [1 2 3 4 5 6] 2)
@@ -291,7 +291,7 @@
 
 (get-in {:message {:key :validation/bad-params, :args nil}}
         [:message])
- 
+
 (fn [& args] inc )
 
 ;; reduce  kv with init {}
@@ -428,7 +428,7 @@
 (((fn [& fs]
     (fn [& as] (map #(apply % as) fs)))
   + max min) 2 3 5 1 6 4)
- 
+
 ((set [1]) 2)
 (set [])
 (#{1 2} 2)
@@ -450,7 +450,7 @@
 
 (a/put! c "hello" (fn [ & agrs] (print "what")))
 
-;; recursively 
+;; recursively
 ((fn p [n c] (when (and (seq c) (>= (count c) n)) (cons (take n c) (p n (drop n c))))) 3 (range 9))
 
 (#(loop [xs %2 acc []]
@@ -520,7 +520,7 @@
 ((fn foo [x] (when (> x 0) (conj (foo (dec x)) x))) 5)
 
 (frequencies ['a 'b 'a 'a])
- 
+
 (reduce (fn [result el] (if (contains?  result el) (update result el inc) (assoc result el 1))) {} [1 1 2 3 2 1 1])
 
 (reduce #(if (contains? % %2) (update % %2 inc) (assoc % %2 1)) {} [1 1 2 3 2 1 1])
@@ -548,7 +548,7 @@
   (do (println "dff")
    {200 "ok"}))
 
-   
+
 (if-let [interaction-id (get-in {:cookies {:value2 "hello"}} [:cookies :value])]
   (str "888" )
   (str "what"))
@@ -587,9 +587,9 @@
   "Here is the block comment "
   "I have no idea to use this")
 
-(defrecord Parcel [start            
+(defrecord Parcel [start
                    finish
-                   package 
+                   package
                    run-type
                    weight
                    ])
@@ -695,7 +695,7 @@
   in toran
   in flow-manager)
 
-(comment 
+(comment
   Macro is a way to do meta-programming
   Code is data
   All clojure code is made of lists of data
@@ -703,7 +703,7 @@
   [test & body]  Attention body is a list
   (list )
   quote '
-  unquote splicing ~@ tilde 
+  unquote splicing ~@ tilde
   unquote ~ tilde
   Syntax quoting ` backtick  (template)
   `(let [r# 1]) gensym  generated symbol
@@ -756,7 +756,7 @@
 
 (defn overlap
   [params]
-  (loop [f (first params) r (rest params) acc {}]    
+  (loop [f (first params) r (rest params) acc {}]
     (if (seq r)
       (let [t (->> (group-by (partial overlap-each-other? f)  r)
                    (reduce-kv (fn [m k v] (if (or (nil? k)
@@ -842,7 +842,7 @@
 
 (defn f [] false)
 
-(with-redefs [f  (fn [] true)] 
+(with-redefs [f  (fn [] true)]
   (f))
 
 (with-redefs-fn {#'f (fn [] true)}
@@ -871,7 +871,7 @@
   a function that has access to locals from the context where it was created
 
   http://clojure-doc.org/articles/language/macros.html
-  
+
   The key difference between quote and syntax quote is that symbols within a syntax quoted form are automatically namespace-qualified.
   Another difference between quoting and syntax quoting is that the latter allows you to unquote forms using the tilde
   ` usually template some code)
@@ -893,7 +893,7 @@
 
 (defmacro awhen [expr & body]
   `(let [~'it ~expr]
-     (if ~'it       
+     (if ~'it
        (do ~@body))))
 
 (awhen [1 2 3] (it 2))
@@ -973,4 +973,24 @@
 (comment
   iptables -I INPUT -p tcp --dport 50514 -s  -j DROP
   iptables -I INPUT -p tcp --dport 2181 -s  -j ACCEPT
-)
+  )
+
+(def refresh-loop
+  (memoize
+   (fn []
+     (let [refresh-chan (a/chan)]
+       (a/go-loop []
+         (try
+           (a/<! refresh-chan)
+           (loop []
+             (let [[_ chan] (a/alts! [(a/timeout 1000) refresh-chan])]
+               (if-not (= chan refresh-chan)
+                 (println "Service discovery listener triggered, refreshing cache")
+                 (recur))))
+           (catch Throwable t
+             (println "Unexpected error occured in refresh-loop")))
+         (recur))
+       refresh-chan))))
+
+(a/go
+  (a/>! (refresh-loop) true))

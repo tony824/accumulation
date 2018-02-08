@@ -3,6 +3,6 @@ All notable changes to this project will be documented in this file. This change
 
 ## [Unreleased]
 ### Changed
-
+- Some fun code
 - Add namespace serenova
 - Add namespace euler
