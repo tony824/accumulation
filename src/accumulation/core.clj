@@ -1,6 +1,7 @@
 (ns accumulation.core
   (:require [ring.util.codec :as codec]
             [clojure.core.async :as a]
+            [clj-http.util :as util]
             [cheshire.core :as json]
             [robert.bruce :refer [try-try-again]]
             [schema.core :as schema]
@@ -10,6 +11,7 @@
             [clojure.spec.alpha :as s]
             [clojure.spec.test.alpha :as stest]
             [clojure.spec.gen.alpha :as gen]
+            [clojure.string :as str]
             [clj-time.core :as t]
             [clj-time.format :as f]
             [clj-time.local :as l]
@@ -23,8 +25,16 @@
             [miner.ftp :as ftp]
             [loom.graph :as g]
             [clojure.edn :as edn]
+            [clojure.zip :as zip]
+            [clojure.data.zip.xml :as dzx]
+            [clojure.data.xml :as xml]
+            [ring.util.mime-type :refer [ext-mime-type]]
+            [ring.util.response :refer [response file-response charset content-type header]]
             [clojure.math.combinatorics :as combo]
-            [clojure.walk :refer [keywordize-keys]]))
+            [clojure.walk :refer [keywordize-keys]])
+  (:import (java.io ByteArrayInputStream ByteArrayOutputStream)
+           (java.security SecureRandom)
+           (org.apache.commons.lang3 RandomStringUtils)))
 
 (comment
   "A point P=(x,y)"
@@ -47,7 +57,7 @@
         [x y] p]
     (cond
       (= x1 x) (= x2 x)
-      (= y1 y) (= y2 y)
+      (= y1 y)  (= y2 y)
       :else (= (* (- x1 x) (- y1 y))
                (* (- x x2) (- y y2))))))
 
@@ -515,7 +525,7 @@
 
 (take-while neg? [-2 -1 0 1 2 3])
 
-(take-while neg? [-2 1 -1 0 1 2 3])
+(take-while neg? [2 1 -1 0 1 2 3])
 
 ((fn foo [x] (when (> x 0) (conj (foo (dec x)) x))) 5)
 
@@ -677,25 +687,6 @@
    })
 
 (comment
-  1 migrate
-  2 seed
-  3 feature flag in configurator
-  4 set properties (sid secret platform-tenant) at service level
-  5 Migrate platform-roles)
-
-(comment
-  1 front-end flow-designer flow-library config-ui tool-bar
-   body search multiselect
-  2 notations send-message send-sms search-email
-  3 clusterd twilio  cluster facebook  clusterd listeners
-  4 manipulate cassandra by using migrate existing data
-  seed new data
-  in fforward
-  in configurator
-  in toran
-  in flow-manager)
-
-(comment
   Macro is a way to do meta-programming
   Code is data
   All clojure code is made of lists of data
@@ -706,7 +697,7 @@
   unquote splicing ~@ tilde
   unquote ~ tilde
   Syntax quoting ` backtick  (template)
-  `(let [r# 1]) gensym  generated symbol
+  `(let [r# 1]) gensym  generated symbol (# is number sign)
   when evaluating macro all lists will be treated as function)
 
 (mapv #(Integer/parseInt (str %)) "987")
@@ -714,6 +705,40 @@
                     [:d :e :f]
                     [:g :h :i]])
 
+
+(comment
+
+  {"1" {"1.1" {"1.1.1" {}
+               "1.1.2" {}}
+        "1.2" {}}
+   "2" {"2.1" {}
+        "2.2" {}
+        "2.3" {}}}
+  ("1" "1.1" "1.1.1" "1.1.2" "1.2" "2" "2.1" "2.2" "2.3"))
+
+(defn flatten-map
+  [m]
+  "loop"
+  (loop [in m out []]
+    (if-let [[[k v] & ts] (seq in)]
+      (recur (concat v ts)
+             (conj out k))
+      out)))
+
+(defn flatten-map-v2
+  "tree-seq"
+  [m]
+  (->> [nil m]
+       (tree-seq sequential? second)
+       (drop 1)
+       (map first)))
+
+(defn flatten-map-v3
+  "postwalk"
+  [m]
+  (let [acc (atom [])]
+    (clojure.walk/postwalk (fn [x]  (when (string? x) (swap!  acc conj  x)) x) m)
+    @acc))
 
 (defn map-keys
   [m f]
@@ -832,9 +857,12 @@
 
 (test #'join)
 (meta #'join)
+
 (clojure.test/run-tests)
 
-(defn ^:private ^:dynamic sum [nums]
+(defn ^:private ^:dynamic
+  sum "This is a doc string"
+  [nums]
   (map + nums))
 
 (defn-  sum2 [nums]
@@ -871,6 +899,8 @@
   a function that has access to locals from the context where it was created
 
   http://clojure-doc.org/articles/language/macros.html
+  syntax quote `
+  qutoe '
 
   The key difference between quote and syntax quote is that symbols within a syntax quoted form are automatically namespace-qualified.
   Another difference between quoting and syntax quoting is that the latter allows you to unquote forms using the tilde
@@ -900,7 +930,10 @@
 
 
 (comment `'~ means "make a quote expression that contains the value of v as it is right now"
-             `'something means to get `(quote something))
+             `'something means to get `(quote something)
+             backquote
+             quote
+             https://www.computerhope.com/keys.htm)
 
 (let [k 'foo] [k 'k `'~k `(quote k)])
 
@@ -922,11 +955,13 @@
   )
 
 (comment
-  key difference between functions and macros is that function arguments are fully evaluated before they’re passed to the function, whereas macros receive arguments as unevaluated data)
+  key difference between functions and macros is that:
+  function arguments are fully evaluated before they’re passed to the function, whereas macros receive arguments as unevaluated data)
 
 (comment
   defrecord ----> struct in c  class in Java
-  defprotocol ---> abstract class in Java)
+  defprotocol ---> abstract class in Java
+  )
 
 (defrecord Banana [qty])
 
@@ -944,6 +979,7 @@
 (extend java.lang.Number
   Dateable
   {:to-ms identity})
+
 (to-ms  124)
 
 (comment
@@ -994,3 +1030,478 @@
 
 (a/go
   (a/>! (refresh-loop) true))
+
+
+
+
+(defn ww []
+  (let [ca (a/chan 4)
+        cb (a/chan)
+        acc (atom [])
+        pa (a/promise-chan)]
+    (a/pipeline
+     4
+     cb
+     (filter (fn [x]
+               (println (str "processing " x))
+               (if (> x 100)
+                 (throw (Throwable. "too big!"))
+                 (even? x))))
+     ca
+     true
+     (fn [error]
+       (a/>!! pa  "val")))
+
+    (a/go-loop [] (when-let [val (a/<! cb)]
+                    (swap! acc conj val)
+                    (recur)))
+
+    (a/<!! (a/go-loop [i 90]
+             (println "queuing:" i)
+             (let [res (a/alt! pa :error [[ca i]] :written)]
+               (when-not (= res :error)
+                 (recur (inc i))))))
+
+    @acc))
+
+
+(defn ww []
+  (let [ca (a/chan 4)
+        cb (a/chan)
+        acc (atom [])
+        pa (a/promise-chan)]
+    (a/pipeline
+     4
+     cb
+     (filter (fn [x]
+               (println (str "processing " x))
+               (if (> x 100)
+                 (throw (Throwable. "too big!"))
+                 (even? x))))
+     ca
+     true
+     (fn [error]
+       (a/>!! pa  "val")))
+
+    (a/go-loop [] (when-let [val (a/<! cb)]
+                    (swap! acc conj val)
+                    (recur)))
+
+    (a/<!! (a/go-loop [i 90]
+             (println "queuing:" i)
+             ;; do a read from pa, or write to ca, but if pa has value
+             ;; don't write to ca
+             (let [[_ p] (a/alts! [pa
+                                   [ca i]]
+                                  :priority true)]
+               (when-not (= p pa)
+                 (recur (inc i))))))
+
+    @acc))
+
+(defn ww2 []
+  (let [ca (a/chan)
+        cb (a/chan)
+        acc (atom [])
+        pa (a/promise-chan)
+        refresh-chan (a/to-chan (range 90 1000))]
+    (a/pipeline
+     4
+     cb
+     (filter (fn [x]
+               (println (str "processing " x))
+               (if (> x 100)
+                 (throw (Throwable. "too big!"))
+                 (even? x))))
+     ca
+     true
+     (fn [error]
+       (a/>!! pa  true)))
+
+    (a/go-loop [] (when-let [val (a/<! cb)]
+                    (swap! acc  conj val)
+                    (recur)))
+
+
+    (a/go-loop []
+      (let [[v chan] (a/alts! [pa refresh-chan] :priority true)]
+        (when-not (= chan pa)
+          (a/>! ca v)
+          (recur))))
+    @acc))
+
+(def c (a/chan))
+
+(let [[c1 c2] (a/split :error c)]
+  (a/go-loop []
+    (println "c1: " (a/<! c1))
+    (a/<! (a/timeout 10))
+    (recur))
+  (a/go-loop []
+    (println "c2: " (a/<! c2))
+    (a/<! (a/timeout 100))
+    (recur)))
+
+(dotimes [n 10]
+  (if (odd? n)
+      (a/>!! c {:error :success})
+      (a/>!! c {:input "ww"})))
+
+
+
+
+{:raw {:permission {:view 1, :edit 1, :delete 1},
+       :modifieddate 1526587980000,
+       :modifiedby {:firstname "Jack," :lastname "Lin," :email "jack@test.com," :userid 183},
+       :name "PICISINCOR-S1ASecurit-912006," :siteid 45, :versionid 1, :folderID 1450, :type "pdf,"
+       :createddate 1526587980000,
+       :icon "https://kirasystems.highq.com/kirasystems/images/fileicon/large_default.svg," :size 52385,
+       :likescount 0, :commentscount 0, :id 10649,
+       :location "Kira-HighQ Integration/Performance Testing/1000,"
+       :createdby {:firstname "Jack," :lastname "Lin," :email "jack@test.com," :userid 183}},
+
+ :path-vec [1000],
+ :input {:integration-id 2, :project-id 45, :id 10649, :name "PICISINCOR-S1ASecurit-912006.pdf," :type :file, :parent-id 1450, :ts 1526587980000}}
+
+(defn resp->xml
+  [{str :body :as resp}]
+  (when-not (str/blank? str)
+    (xml/parse-str str
+                   :include-node? #{:comment :element :characters}
+                   ;; DEV-401 - disallow DTD
+                   ;; https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Prevention_Cheat_Sheet#XMLInputFactory_.28a_StAX_parser.29
+                   :support-dtd false)))
+
+(defn resp->xml-zipper
+  [resp]
+  (zip/xml-zip (resp->xml resp)))
+
+(defn zipper->content
+  [xml-zipper filter]
+  (->> (if (coll? filter)
+         (apply dzx/xml-> xml-zipper filter)
+         (dzx/xml-> xml-zipper filter))
+       (map zip/node) (map :content)))
+
+;; (->> (dzx/xml-> xml-zipper filter) (map zip/node) (map :content)))
+
+
+(defn is-xml-el?
+  [node]
+  (= (type node) clojure.data.xml.node.Element))
+
+(defn is-xml-comment?
+  [node]
+  (= (type node) clojure.data.xml.node.Comment))
+
+(defn els->vals
+  [content]
+  (reduce
+   #(conj %1
+          (assoc {} (:tag (first %2)) (first (:content (first %2)))
+                 (:tag (second %2)) (first (:content (second %2)))))
+   [] content))
+
+(defn xml->clj
+  [xml]
+  (cond
+    (is-xml-el? xml)
+    (let [tag             (:tag xml)
+          attrs           (:attrs xml)
+          content         (->> (:content xml) (map xml->clj))
+          merged-content  (when (some map? content)
+                            (let [maps (filter map? content)
+                                  ks   (map keys maps)]
+                              (when (= ks (distinct ks))
+                                (reduce merge maps))))]
+      {tag (or (merge merged-content (when-not (empty? attrs) attrs))
+               ;; this might cause name collisions between tags and attrs, but is still useful
+               (if (next content) content (first content)))})
+    (is-xml-comment? xml)
+    nil
+    :else xml))
+
+(defn ensure-sequential
+  [v]
+  (cond (sequential? v) v
+        (nil? v) (list)
+        :else (list v)))
+
+(defn resp->clj
+  [resp]
+  (some-> resp resp->xml xml->clj))
+
+(def sites-xml-str
+  "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+   <sites>
+      <site>
+          <id>45</id>
+          <sitename>Kira-HighQ Integration</sitename>
+          <role>CONTENT_ADMIN, MEMBER_ADMIN, QA_ADMIN, REPORTING_ADMIN, SITE_ADMIN</role>
+          <sitedescription></sitedescription>
+          <sitefolderID>238</sitefolderID>
+          <module>
+              <home enable=\"0\"/>
+              <activity enable=\"0\"/>
+              <document enable=\"1\"/>
+              <wiki enable=\"0\"/>
+              <blog enable=\"0\"/>
+              <task enable=\"0\">
+                  <timelineview>0</timelineview>
+              </task>
+              <event enable=\"0\"/>
+              <isheet enable=\"1\"/>
+              <qa enable=\"0\"/>
+              <people enable=\"1\"/>
+          </module>
+          <categories>
+              <category>
+                  <name>Service</name>
+              </category>
+          </categories>
+          <status>Active</status>
+          <rawsitesize>
+              <activedocumentsize>0</activedocumentsize>
+              <deleteddocumentsize>0</deleteddocumentsize>
+              <totalsize>0</totalsize>
+          </rawsitesize>
+          <isSyncable>1</isSyncable>
+          <file>
+              <permissionlevel>SITE_FOLDERS_AND_FILES</permissionlevel>
+          </file>
+      </site>
+   </sites>")
+
+(defn folders-xml-str
+  [folder-id]
+  (format
+  "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+   <folders>
+      <folder>
+          <id>1904</id>
+          <name>test folder</name>
+          <permission>
+              <view>1</view>
+              <edit>1</edit>
+              <delete>1</delete>
+              <addEditAllFiles>1</addEditAllFiles>
+              <viewAllFiles>1</viewAllFiles>
+              <admin>1</admin>
+          </permission>
+          <child>0</child>
+          <filecount>83</filecount>
+          <parentFolderID>%s</parentFolderID>
+          <accessInherited>1</accessInherited>
+          <createddate>29 Aug 2018 18:37</createddate>
+          <modifieddate>04 Feb 2019 19:36</modifieddate>
+          <location>Kira-HighQ Integration &gt; test</location>
+          <createdby>
+              <firstname>foo</firstname>
+              <lastname>bar</lastname>
+              <email>foo.bar@test.com</email>
+              <userid>214</userid>
+          </createdby>
+          <modifiedby>
+              <firstname>foo</firstname>
+              <lastname>bar</lastname>
+              <email>foo.bar@test.com</email>
+              <userid>214</userid>
+          </modifiedby>
+      </folder>
+   </folders>"
+  folder-id))
+
+(defn files-xml-str
+  [folder-id]
+  (format
+   "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+    <files>
+       <filetotal>1</filetotal>
+       <file>
+           <name>CBRX  MARKETING LICENSE AGR</name>
+           <id>12017</id>
+           <folderID>%s</folderID>
+           <siteid>45</siteid>
+           <versionid>1</versionid>
+           <createddate>30 Jan 2019 19:10</createddate>
+           <modifieddate>30 Jan 2019 19:10</modifieddate>
+           <type>pdf</type>
+           <size>204689</size>
+           <icon>https://kirasystems.highq.com/kirasystems/images/fileicon/large_default.svg</icon>
+           <commentscount>0</commentscount>
+           <likescount>0</likescount>
+           <location>Kira-HighQ Integration/Test folder</location>
+           <createdby>
+               <firstname>foo</firstname>
+               <lastname>bar</lastname>
+               <email>foo.bar@test.com</email>
+               <userid>214</userid>
+           </createdby>
+           <modifiedby>
+               <firstname>foo</firstname>
+               <lastname>bar</lastname>
+               <email>foo.bar@test.com</email>
+               <userid>214</userid>c
+           </modifiedby>
+           <permission>
+               <view>1</view>
+               <edit>1</edit>
+               <delete>1</delete>
+           </permission>
+       </file>
+    </files>"
+   folder-id))
+
+(defn mock-response
+  [xml-str]
+  (let [length (count xml-str)]
+    (-> xml-str
+        clojure.string/trim-newline
+        response
+        (header "Content-Length" length)
+        (content-type "application/xml")
+        (charset "utf-8")
+        (assoc :length length))))
+
+(defn mock-file-response
+  []
+  (let [filename "TEST.pdf"
+        content "foo"
+        length (count content)]
+    (-> (response (ByteArrayInputStream. (.getBytes content "UTF-8")))
+        (content-type "application/octet-stream")
+        (charset "utf-8")
+        (header "Content-Length" length)
+        (header "Content-Disposition" (str "attachment;filename=\"" filename "\""))
+        (assoc :length length))))
+
+(defprotocol Importer
+  "This protocol defines functions that should be implemented
+   when importing docs from HighQ to kira"
+  (retrieve-sites [this]
+    "Retrieve HighQ sites that are in 'active' or 'preparation'
+     https://collaborate.highq.com/sitepoint/viewWikiPage.action?metaData.siteID=714&metaData.wikiID=23444
+
+     Arguments:
+      this   - Object implementing Importer protocol
+               Should have been instantiated with access-token,typically a defrecord map")
+  (retrieve-folders [this folder-id]
+    "Retrieve all subfolders in the specified folder
+     https://collaborate.highq.com/sitepoint/viewWikiPage.action?metaData.siteID=714&metaData.wikiID=16938
+
+     Arguments:
+      this     -  Object implementing Importer protocol
+                  Should have been instantiated with access-token,typically a defrecord map
+      folder-id - The identifier of current folder or site folder-id")
+  (retrieve-files [this folder-id]
+    "Retrieve all files in the specified folder
+     https://collaborate.highq.com/sitepoint/viewWikiPage.action?metaData.siteID=714&metaData.wikiID=16945
+
+     Arguments:
+      this     -  Object implementing Importer protocol
+                  Should have been instantiated with access-token,typically a defrecord map
+      folder-id - The identifier of current folder or site foler-id")
+  (retrieve-file-content [this file-id]
+    "Retrieve file content by file-id
+     https://collaborate.highq.com/sitepoint/viewWikiPage.action?metaData.siteID=714&metaData.wikiID=16912
+
+     Arguments:
+      this     -  Object implementing Importer protocol
+                  Should have been instantiated with access-token,typically a defrecord map
+      file-id -   The identifier of file to be retrieved"))
+
+(defrecord MockImport []
+  Importer
+  (retrieve-sites
+    [this]
+    (mock-response sites-xml-str))
+  (retrieve-folders
+    [this folder-id]
+    (mock-response (folders-xml-str folder-id)))
+  (retrieve-files
+    [this folder-id]
+    (mock-response (files-xml-str folder-id)))
+  (retrieve-file-content
+    [this file-id]
+    (mock-file-response)))
+
+
+(defrecord Import []
+  Importer
+  (retrieve-sites
+    [this]
+    (mock-response sites-xml-str))
+  (retrieve-folders
+    [this folder-id]
+    (mock-response (folders-xml-str folder-id)))
+  (retrieve-files
+    [this folder-id]
+    (mock-response (files-xml-str folder-id)))
+  (retrieve-file-content
+    [this file-id]
+    (mock-file-response)))
+
+
+(clj-http.client/post
+ "https://kirasystems.highq.com/kirasystems/Login.action"
+ {:form-params {"email" "tony@test.com"
+                "password" "pass"}
+  :throw-exceptions false
+  :cookie-store (clj-http.cookies/cookie-store)})
+
+
+
+(s/fdef partition-multiplication
+  :args (s/cat :input (s/coll-of number?)
+               :n  pos-int?)
+  :ret  (s/coll-of number?))
+
+(defn partition-multiplication
+  "Given a list of numbers, partition the list by n and multipy numbers in each group."
+  [input n]
+  (->> input
+       (partition-all n)
+       (map (fn [[a b]]
+              (if b
+                (* a b)
+                a)))))
+
+(comment
+  docstring for a `defn` or `def` or ns, ^:private ^:dynamic
+  spec for arguments and ret
+  comments if necessary
+  enriched tests (lein cloverage)
+  meaningful variables
+
+  (seq s) over (not (empty? s))
+  (some ) over (first filter)
+  use .. over (-> .)
+  :as and :refer for the same ns
+
+  ns alphabetically
+  120 or 80
+
+  empty line
+  tailing space
+  hanging parathesis
+
+  concise and neat
+  achieve balance
+
+  code is data , data is code
+  (use 'clojure.repl))
+
+
+(defn factorial
+  "Return factorial of the given integer
+  e.g. (* 3 2 1)"
+  [n]
+  (cond
+    (= 1 n) 1
+    :else   (* n (factorial (dec n)))))
+
+(defn factorial-v2
+  "Return factorial of the given integer by using auto-promoting multipy
+   e.g. 3! = (* 3 2 1)."
+  [n]
+  (reduce *' (range 1 (inc n))))
